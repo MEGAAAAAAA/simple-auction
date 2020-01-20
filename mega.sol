@@ -1,6 +1,9 @@
 pragma solidity >=0.4.22 <0.6.0;
 pragma experimental ABIEncoderV2;
 
+
+//SIMPLE IMPLEMENTATION - IN PROGRESS
+
 contract MEGA{
 
     uint256 total_cap = 10000;
