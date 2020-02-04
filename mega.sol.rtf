@@ -48,17 +48,15 @@ contract MEGA{
         }
     }
 
-    //Struct defining an auction
+    //Struct defining an auction, I got rid of increment and highestMaxBid
     struct Auction{
         uint auctionID; //unique auction identifier
         uint numTokens; //number of tokens on sale
         uint minPrice; //minimum price per all tokens offered
-        uint increment; //the increment value for bidding - (default set to 1, in the future adjustable)
         address sellerID; //address of the token seller
         bool isActive; //flag for active auction
         uint numBids; //number of current bidders in the auction
         uint highestCurrentBid; //value of the current highest bid
-        uint highestMaxBid; //value of the maximum bid from the current highest bidder
         Person highestBidder; //Person instance of the highest bidder
 
         //Implement the below in the future:
@@ -76,40 +74,29 @@ contract MEGA{
                                             auctionID: auctionCount,
                                             numTokens: _amount,
                                             minPrice: _minPrice,
-                                            increment: 1,
                                             sellerID: msg.sender,
                                             isActive: true,
                                             numBids: 0,
-                                            highestCurrentBid: _minPrice,
-                                            highestMaxBid: 0,
+                                            highestCurrentBid: 0,
                                             highestBidder: Person(0x0000000000000000000000000000000000000000, 0, false)});
         active_auctions[auctionCount] = newAuction; //adding auction to the mapping of currently active functions
     }
 
 
     //Function to place a bid on the auction
-    function buyTokens(uint _auctionID, uint _maxBid) public {
+    function buyTokens(uint _auctionID, uint _userBid) public {
         //add condition to check if requestor has enough ether
-        require(msg.sender.balance > _maxBid, "You have insufficient funds."); //require the buyer to have enough ether funds to cover the transaction
+        require(msg.sender.balance > _userBid, "You have insufficient funds."); //require the buyer to have enough ether funds to cover the transaction
         //I think eventually we will need a requirement here that the auction addressed is active
-        require(_maxBid > active_auctions[_auctionID].highestCurrentBid, "You cannot bid less than the current highest bid."); //require the amount that the buyer is offering is greater than the current highest bid.
+        require(_userBid > active_auctions[_auctionID].highestCurrentBid, "You cannot bid less than the current highest bid."); //require the amount that the buyer is offering is greater than the current highest bid.
+        require(_userBid >= active_auctions[_auctionID].minPrice, "The seller is not willing to sell at this price"); //require the bidder to bid at least the minPrice
 
+        active_auctions[_auctionID].highestCurrentBid = _userBid;//min((active_auctions[_auctionID].highestMaxBid + active_auctions[_auctionID].increment), _maxBid), but this won't compile;
+        active_auctions[_auctionID].highestBidder = registered_users[msg.sender];
+        active_auctions[_auctionID].numBids += 1;
 
-        if (_maxBid > active_auctions[_auctionID].highestMaxBid){
-            active_auctions[_auctionID].highestCurrentBid = active_auctions[_auctionID].highestMaxBid + active_auctions[_auctionID].increment;//min((active_auctions[_auctionID].highestMaxBid + active_auctions[_auctionID].increment), _maxBid), but this won't compile;
-            active_auctions[_auctionID].highestMaxBid = _maxBid;
-            active_auctions[_auctionID].highestBidder = registered_users[msg.sender];
-            active_auctions[_auctionID].numBids += 1;
-        }
-        else if (_maxBid == active_auctions[_auctionID].highestMaxBid){
-            active_auctions[_auctionID].highestCurrentBid = _maxBid;
-        }
-        else{
-            active_auctions[_auctionID].highestCurrentBid = _maxBid + active_auctions[_auctionID].increment; //min((_maxBid + active_auctions[_auctionID].increment), active_auctions[_auctionID].highestMaxBid), but this won't compile;
-        }
     }
 
-   
 
     //TEST function to check the current user ether balance - to be removed later
     function getBalance(address _addressToCheck) public returns (uint){
