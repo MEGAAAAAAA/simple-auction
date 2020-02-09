@@ -21,6 +21,9 @@ contract MEGA{
     uint public auctionCount = 0; //number of currently active auctions (OPTIONAL - for test purposes)
     uint public theBalanceToCheckEther = 0; //balance that is being checked (OPTIONAL - for test purposes - REMOVE LATER)
     uint public theBalanceToCheckTokens = 0;
+    uint public yearEndTime = 0; //time when the year is over
+    uint public daysInYear = 0; //Number of days in this year
+    bool public yearDistribution = false; //have the tokens been distributed for this year
     address payable owner;
 
 
@@ -36,7 +39,15 @@ contract MEGA{
         // you can only call them like that ("internally"),
         // because the contract itself does not exist yet.
         owner = msg.sender;
+        yearEndTime = now + 365 days; // this is variable and I think this is a problem
     }
+
+     modifier _ownerOnly(){
+      require(msg.sender == owner);
+      _;
+    }
+
+
 
     //Struct defining a person (user) in the contract
     struct Person{
@@ -61,6 +72,17 @@ contract MEGA{
         }
     }
 
+    function endTheYear(uint _daysInNextYear) private _ownerOnly{
+        require(now > yearEndTime, 'The year has not ended yet');
+        daysInYear = _daysInNextYear;
+        yearDistribution = false;
+    }
+
+    function distribute() private _ownerOnly{
+        require(yearDistribution == false, 'Already distibuted this year');
+        //send out tokens to all active users
+        yearDistribution = true;
+    }
     //Struct defining an auction, I got rid of increment and highestMaxBid
     struct Auction{
         uint auctionID; //unique auction identifier
@@ -121,8 +143,15 @@ contract MEGA{
     function endAuction(uint _auctionID) public{
         require(now > active_auctions[_auctionID].auctionEnd, 'The ending time for this auction has not yet been reached');//require that the end time for the auction has already happened
         active_auctions[_auctionID].isActive = false;
-        //send back tokens to all non-winning bidders
+        //send back ether to all non-winning bidders
         //add the amount of tokens to the winning bidder
+    }
+
+    function cancelAuction(uint _auctionID) public{
+        require(msg.sender == active_auctions[_auctionID].sellerID, 'Only the seller can cancel an auction' ); //require that only the seller can cancel an auction
+        active_auctions[_auctionID].isActive = false;
+        //send back ether to all bidders
+        //send back tokens to seller
     }
 
     //TEST function to check the current user ether balance - to be removed later
