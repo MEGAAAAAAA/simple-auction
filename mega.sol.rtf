@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /*
 
-MEGA.sol v0.015 (Annazita's changes on 13/2/20 5:00pm)
+MEGA.sol v0.015 (Annazita's changes on 18/2/20 12:00pm)
 
 Contract MEGA is intended to assist with allowance trading within the European Union Emissions Trading Scheme (EU ETS).
 
@@ -70,6 +70,10 @@ contract MEGA{
         }
     }
 
+    function deregister() public{
+        require(registered_users[msg.sender].isActive == true, "You are not registered"); //check if users not registered yet
+        registered_users[msg.sender].isActive = false;
+    }
 
     //allows owner of the contract to end the current year (Assuming a year has already passed) and start a new year of a specified length, and with a specified token distribution
     function endTheYear(uint _daysInNextYear, uint _numberOfTokensToDistribute) public {
@@ -171,6 +175,8 @@ contract MEGA{
         active_auctions[_auctionID].isActive = false;
         //send back ether to all bidders
         registered_users[active_auctions[_auctionID].sellerID].tokensWallet += active_auctions[_auctionID].numTokens;
+        frozenTokens -= active_auctions[_auctionID].numTokens;
+        active_auctions[_auctionID].highestBidder.personAddress = msg.sender;
     }
 
     //This function allows for people who didn't win an auction to get back all of the ether that they bid.
@@ -185,6 +191,7 @@ contract MEGA{
         require(active_auctions[_auctionID].highestBidder.personAddress == msg.sender, "You were not the winner of this auction");
         require(active_auctions[_auctionID].isActive == false, "You must wait until the auction is over for you to withdraw your winnings");
        registered_users[active_auctions[_auctionID].highestBidder.personAddress].tokensWallet += active_auctions[_auctionID].numTokens;
+       frozenTokens -= active_auctions[_auctionID].numTokens;
        active_auctions[_auctionID].numTokens = 0;
     }
 
