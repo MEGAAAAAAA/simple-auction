@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /*
 
-MEGA.sol v0.015 (Annazita's changes on 18/2/20 12:00pm)
+MEGA.sol v0.015 (Annazita's changes on 24/2/20 15:30pm)
 
 Contract MEGA is intended to assist with allowance trading within the European Union Emissions Trading Scheme (EU ETS).
 
@@ -24,6 +24,7 @@ contract MEGA{
     uint daysInYear = 0; //Number of days in this year
     uint yearDistribution = 0; //The number of years that have passed. I am going to use this to track whether users are entitled to a distribution
     uint yearTokenDistribution = 0; //The amount of tokens to be distributed this year
+    //uint minimumBidIncrease = 0; //This is the minimum amount by which one has to outbid
     address public owner;
 
 
@@ -63,11 +64,10 @@ contract MEGA{
     //Function to register a new user
     function register() public{
         require(registered_users[msg.sender].isActive == false, "You are already registered"); //check if users not registered yet
-        if (usersCount <= total_actors){ //check if there is an available actor slot
+        require(usersCount < total_actors, "There are no more actors allowed in this system"); //Make sure we have not exceeded the size of the system
             Person memory newUser = createPerson(msg.sender); //generate a new user
             registered_users[msg.sender] = newUser; //add user to registered_users list
             usersCount += 1; //increase user count to keep track of the total registered_users size
-        }
     }
 
     function deregister() public{
@@ -119,7 +119,7 @@ contract MEGA{
         Auction memory newAuction = Auction({
                                             auctionID: auctionCount,
                                             numTokens: _amount,
-                                            minPrice: _minPrice * 1000000000000000000,
+                                            minPrice: _minPrice * 1 ether, //* 1000000000000000000,
                                             sellerID: msg.sender,
                                             isActive: true,
                                             numBids: 0,
@@ -140,7 +140,7 @@ contract MEGA{
     //Function to place a bid on the auction
     function buyTokens(uint _auctionID) public payable {
 
-        require(msg.sender.balance > msg.value, "You have insufficient funds."); //require the buyer to have enough ether funds to cover the transaction
+        require(_auctionID <= auctionCount, "This is not an auction that has been created"); //check if user has put in the number for an auction that exists
         require(now <= active_auctions[_auctionID].auctionEnd, 'The ending time for this auction has been reached');//require that the end time for the auction has not already happened
         require(active_auctions[_auctionID].isActive, 'This auction is not active');//requrie that the auction is active
         require(msg.value + active_auctions[_auctionID].bidders[msg.sender] > active_auctions[_auctionID].highestCurrentBid, "You cannot bid less than or equal to the current highest bid."); //require the amount that the buyer is offering is greater than the current highest bid.
