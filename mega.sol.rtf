@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /*
 
-MEGA.sol v0.015 (Annazita's changes on 24/2/20 15:30pm)
+MEGA.sol v0.015 (Gosia's changes on 24/2/20 9:30pm)
 
 Contract MEGA is intended to assist with allowance trading within the European Union Emissions Trading Scheme (EU ETS).
 
@@ -18,12 +18,13 @@ contract MEGA{
     uint public frozenTokens = 0;
     uint usersCount = 0; //number of registered users (OPTIONAL - for test purposes)
     uint auctionCount = 0; //number of currently active auctions (OPTIONAL - for test purposes)
-    uint public theBalanceToCheckEther = 0; //balance that is being checked (OPTIONAL - for test purposes - REMOVE LATER)
+    uint public theBalanceToCheckEther = 0; //balance that is being checked (OPTIONAL - for test purposes)
+    uint public mostRecentAuctionCreated = 0;
 
     uint yearEndTime = 0; //time when the year is over
     uint daysInYear = 0; //Number of days in this year
     uint yearDistribution = 0; //The number of years that have passed. I am going to use this to track whether users are entitled to a distribution
-    uint yearTokenDistribution = 0; //The amount of tokens to be distributed this year
+    //uint yearTokenDistribution = 0; //The amount of tokens to be distributed this year
     //uint minimumBidIncrease = 0; //This is the minimum amount by which one has to outbid
     address public owner;
 
@@ -42,10 +43,6 @@ contract MEGA{
         //yearEndTime = now + 365 days; // this is variable and I think this is a problem
     }
 
-    // modifier _ownerOnly(){
-    //  require(msg.sender == owner);
-    //  _;
-    //}
 
     //Struct defining a person (user) in the contract
     struct Person{
@@ -58,7 +55,7 @@ contract MEGA{
     //Function to generate a new user, taking user address and returning Person instantiation
     function createPerson (address _personAddress) private returns (Person memory){
         uint tokenAllocation = total_cap / total_actors; //number of tokens to allocate per person
-        return Person({ personAddress: _personAddress, tokensWallet: tokenAllocation, isActive: true, theYear: yearDistribution});
+        return Person({ personAddress: _personAddress, tokensWallet: tokenAllocation, isActive: true, theYear: yearDistribution + 1});
     }
 
     //Function to register a new user
@@ -76,18 +73,18 @@ contract MEGA{
     }
 
     //allows owner of the contract to end the current year (Assuming a year has already passed) and start a new year of a specified length, and with a specified token distribution
-    function endTheYear(uint _daysInNextYear, uint _numberOfTokensToDistribute) public {
+    function endTheYear(uint _daysInNextYear) public {
         require(msg.sender == owner, 'Only the contract owner can call this function'); //Ensures only the contract owner has access to all factors affecting initial token distribution
         require(now > yearEndTime, 'The year has not ended yet');
         daysInYear = _daysInNextYear;
         yearEndTime = now + _daysInNextYear;
-        yearTokenDistribution = _numberOfTokensToDistribute;
+        total_cap = (total_cap * 9825) / 10000; //This multiplies the total number of tokens that can be distributed by 0.9825, thus performing the 1.75% decrease
         yearDistribution += 1;
     }
 
     function recieveDistribution() public {
         require(registered_users[msg.sender].theYear <= yearDistribution,'You have already recieved your distribution of tokens for this year');
-        registered_users[msg.sender].tokensWallet += yearTokenDistribution;
+        registered_users[msg.sender].tokensWallet += (total_cap / total_actors);
         registered_users[msg.sender].theYear = yearDistribution + 1;
 
     }
@@ -114,7 +111,7 @@ contract MEGA{
         require(registered_users[msg.sender].isActive == true, "You need to register as a user in order to sell"); //check if users is registered
         require(registered_users[msg.sender].tokensWallet >= _amount, "You do not have enough tokens for this auction"); //Require that the user has the amount of tokens that they are trying to sell
         auctionCount += 1;
-
+        mostRecentAuctionCreated = auctionCount;
         //Instantiating a new auction with specified amount and minimum price
         Auction memory newAuction = Auction({
                                             auctionID: auctionCount,
