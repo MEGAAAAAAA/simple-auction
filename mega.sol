@@ -79,12 +79,15 @@ contract MEGA{
         uint tokensWallet;  //attribute for the current number of tokens owned by the user
         bool isActive; //flag for active user
         uint theYear; //which year has the user taken their distribution of tokens for
+        uint recentEmissions;
+        bool noDebt;
+        
     }
 
     //Function to generate a new user, taking user address and returning Person instantiation
     function createPerson (address _personAddress) private returns (Person memory){
         uint tokenAllocation = total_cap / total_actors; //number of tokens to allocate per person
-        return Person({ personAddress: _personAddress, tokensWallet: tokenAllocation, isActive: true, theYear: yearDistribution});
+        return Person({ personAddress: _personAddress, tokensWallet: tokenAllocation, isActive: true, theYear: yearDistribution, recentEmissions:0, noDebt: true});
     }
 
     //Function to register a new user
@@ -151,7 +154,7 @@ contract MEGA{
                                             numBids: 0,
                                             highestCurrentBid: 0,
                                             auctionEnd: now + _biddingTime, // * 1 hours,
-                                            highestBidder: Person(0x0000000000000000000000000000000000000000, 0, false, 0)
+                                            highestBidder: Person(0x0000000000000000000000000000000000000000, 0, false, 0, 0, true)
         });
 
         active_auctions[auctionCount] = newAuction; //adding auction to the mapping of currently active functions
@@ -256,11 +259,26 @@ contract MEGA{
         return o.emissions_registry(_address); 
     }
     
+    
+    
+    //THE BELOW NEEDS TO BE INTEGRATED WITH ANNAZITA'S CODE FOR THE YEAR ETC! 
     //This function allows individual users to finish their year calculations
     function endYearCalculation() public {
         uint emissions = getEmission(msg.sender); 
-        //NEED TO HAVE A FLAG ON THE USER WHETHER THEY CAN FINISH THE YEAR OR NOT
+        uint tokens = registered_users[msg.sender].tokensWallet;
+        registered_users[msg.sender].recentEmissions = emissions;
         
+        
+        if (emissions <= tokens){
+        //Reducing user's token value
+            registered_users[msg.sender].tokensWallet -= emissions;
+        }
+        
+        else {
+        //Setting user debt flag 
+        registered_users[msg.sender].noDebt = false;
+        
+        }
     }
     
 
