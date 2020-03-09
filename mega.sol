@@ -4,12 +4,40 @@ pragma experimental ABIEncoderV2;
 
 /*
 
-MEGA.sol v0.015 (Gosia's changes on 24/2/20 9:30pm)
+MEGA.sol v0.9 (Gosia's changes on 09/03/2020 9:30pm - added an Oracle)
 
 Contract MEGA is intended to assist with allowance trading within the European Union Emissions Trading Scheme (EU ETS).
 
 */
 
+pragma solidity ^0.4.6;
+
+//This is the Oracle that allows an admin user to put in the emission values
+contract Oracle {
+
+    mapping(address => uint) public emissions_registry; //the registry of emission values
+    address private owner; //the only address that can change the entry values
+    
+    constructor() public {
+        owner = msg.sender;
+    }
+    
+    //This is a setter function that allows the owner user to set the emission values
+    function set(address _address, uint _x) public returns(bool success) {
+        require(msg.sender == owner, 'Only the contract owner can call this function');
+        emissions_registry[_address] = _x;
+        return true;
+    }
+}
+
+//This is the interface for the Oracle contract
+contract OracleInterface {
+    mapping(address => uint) public emissions_registry;
+    function set(address _address, uint _x) returns(bool success) {} 
+}
+
+
+//This is the main MEGA contract code
 contract MEGA{
 
     //Global variables and data structures used in the contract
@@ -37,10 +65,11 @@ contract MEGA{
     uint public theTokenBalance = 0; //Tester function to see if the token wallets work as they shoiuld
 
 
-    //This assigns the status of owner to the account that compiles this code (I think)
-    constructor() public {
+    address addressOracle;
+
+    function MEGA(address OAddress) {
+        addressOracle = OAddress;
         owner = msg.sender;
-        //yearEndTime = now + 365 days; // this is variable and I think this is a problem
     }
 
 
@@ -220,6 +249,19 @@ contract MEGA{
     function checkTokenBalance() public {
         theTokenBalance = registered_users[msg.sender].tokensWallet;
     }
-
+    
+    //This function retrieves the emissions value from the Oracle
+    function getEmission(address _address) public constant returns(uint O) {
+        OracleInterface o = OracleInterface(addressOracle);
+        return o.emissions_registry(_address); 
+    }
+    
+    //This function allows individual users to finish their year calculations
+    function endYearCalculation() public {
+        uint emissions = getEmission(msg.sender); 
+        //NEED TO HAVE A FLAG ON THE USER WHETHER THEY CAN FINISH THE YEAR OR NOT
+        
+    }
+    
 
 }
