@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 /*
 
-MEGA.sol v0.015 (Gosia's changes on 10/3/20 3pm)
+MEGA.sol v0.015 (Gosia's changes on 11/3/20 1pm)
 
 Contract MEGA is intended to assist with allowance trading within the European Union Emissions Trading Scheme (EU ETS).
 
@@ -31,7 +31,7 @@ contract Oracle {
 //This is the interface for the Oracle contract
 contract OracleInterface {
     mapping(address => uint) public emissions_registry;
-    function set(address _address, uint _x) returns(bool success) {}
+    function set(address _address, uint _x) public returns(bool success) {}
 }
 
 
@@ -41,37 +41,39 @@ contract MEGA{
     //Global variables and data structures used in the contract
     uint256 total_cap = 10000; //the initial number of total allowance tokens in the contract
     uint total_actors = 20; //the initial number of actors in the contract
-    uint public frozenTokens = 0;
+    uint private frozenTokens = 0;
     uint usersCount = 0; //number of registered users (OPTIONAL - for test purposes)
     uint auctionCount = 0; //number of currently active auctions (OPTIONAL - for test purposes)
-    uint public theBalanceToCheckEther = 0; //balance that is being checked (OPTIONAL - for test purposes)
-    uint public mostRecentAuctionCreated = 0;
+    uint private theBalanceToCheckEther = 0; //balance that is being checked (OPTIONAL - for test purposes)
+    uint private mostRecentAuctionCreated = 0;
 
     uint yearEndTime = 0; //time when the year is over
     uint daysInYear = 0; //Number of days in this year
     uint yearDistribution = 0; //The number of years that have passed. I am going to use this to track whether users are entitled to a distribution
     //uint yearTokenDistribution = 0; //The amount of tokens to be distributed this year
     //uint minimumBidIncrease = 0; //This is the minimum amount by which one has to outbid
-    address public owner;
+    address private owner;
 
 
     mapping(address => Person) public registered_users; //a mapping with registered users and their corresponding addresses
     mapping(uint => Auction) public active_auctions; //a mapping with all currently active auctions and their corresponding IDs
-    mapping(uint => uint) public deposited_tokens;
+    mapping(uint => uint) private deposited_tokens;
 
-    uint public theBidAmount = 0; //Tester function to see if the mapping works
-    uint public theTokenBalance = 0; //Tester function to see if the token wallets work as they shoiuld
-
+    uint private theBidAmount = 0; //Tester function to see if the mapping works
+    uint private theTokenBalance = 0; //Tester function to see if the token wallets work as they shoiuld
 
 
     address addressOracle;
 
-    function MEGA(address OAddress) {
+    constructor(address OAddress) public {
+        // State variables are accessed via their name
+        // and not via e.g. this.owner. This also applies
+        // to functions and especially in the constructors,
+        // you can only call them like that ("internally"),
+        // because the contract itself does not exist yet.
         addressOracle = OAddress;
         owner = msg.sender;
     }
-
-
 
     //Struct defining a person (user) in the contract
     struct Person{
@@ -98,13 +100,13 @@ contract MEGA{
             usersCount += 1; //increase user count to keep track of the total registered_users size
     }
 
-    function deregister() public{
+    function deregister() private{ //PRIVATE FOR TEST PURPOSES
         require(registered_users[msg.sender].isActive == true, "You are not registered"); //check if users not registered yet
         registered_users[msg.sender].isActive = false;
     }
 
     //allows owner of the contract to end the current year (Assuming a year has already passed) and start a new year of a specified length, and with a specified token distribution
-    function endTheYear(uint _daysInNextYear) public {
+    function ADMIN_endYear(uint _daysInNextYear) public {
         require(msg.sender == owner, 'Only the contract owner can call this function'); //Ensures only the contract owner has access to all factors affecting initial token distribution
         require(now > yearEndTime, 'The year has not ended yet');
         daysInYear = _daysInNextYear;
@@ -113,22 +115,24 @@ contract MEGA{
         yearDistribution += 1;
     }
 
-    function recieveDistribution() public {
+    function endMyYear() public {
         require(registered_users[msg.sender].theYear <= yearDistribution,'You have already recieved your distribution of tokens for this year');
         uint emissions = getEmission(msg.sender);
         uint tokens = registered_users[msg.sender].tokensWallet;
         registered_users[msg.sender].recentEmissions = emissions;
+        registered_users[msg.sender].theYear = yearDistribution + 1;
+
         if (emissions <= tokens){
         //Reducing user's token value
             registered_users[msg.sender].noDebt = true;
             registered_users[msg.sender].tokensWallet -= emissions;
             registered_users[msg.sender].tokensWallet += (total_cap / total_actors);
-            registered_users[msg.sender].theYear = yearDistribution + 1;
-
         }
         else {
             //Setting user debt flag
             registered_users[msg.sender].noDebt = false;
+            registered_users[msg.sender].tokensWallet = 0;
+
             }
 
 
@@ -155,7 +159,8 @@ contract MEGA{
         require(_amount != 0, "Cannot sell empty auction.");//require the auction not to be empty
         require(registered_users[msg.sender].isActive == true, "You need to register as a user in order to sell"); //check if users is registered
         require(registered_users[msg.sender].tokensWallet >= _amount, "You do not have enough tokens for this auction"); //Require that the user has the amount of tokens that they are trying to sell
-        require((registered_users[msg.sender].theYear == yearDistribution + 1) ||(registered_users[msg.sender].noDebt == false && registered_users[msg.sender].theYear == yearDistribution),"You need to update your year and/or resolve your fines"); //make sure the user is in the right year
+        require((registered_users[msg.sender].theYear == yearDistribution + 1) ,"You need to end your year"); //make sure the user is in the right year
+        require(registered_users[msg.sender].noDebt == true, "You need to get out of debt, contanct the administrator to pay your fine"); //Makes sure the user cannot interact if they have not paid their fine
         auctionCount += 1;
         mostRecentAuctionCreated = auctionCount;
         //Instantiating a new auction with specified amount and minimum price
@@ -189,8 +194,8 @@ contract MEGA{
         require(msg.value + active_auctions[_auctionID].bidders[msg.sender] > active_auctions[_auctionID].highestCurrentBid, "You cannot bid less than or equal to the current highest bid."); //require the amount that the buyer is offering is greater than the current highest bid.
         require(msg.value + active_auctions[_auctionID].bidders[msg.sender] >= active_auctions[_auctionID].minPrice, "The seller is not willing to sell at this price"); //require the bidder to bid at least the minPrice
         require(registered_users[msg.sender].isActive == true, "You need to register as a user in order to bid"); //check if users not registered yet
-        require((registered_users[msg.sender].theYear == yearDistribution + 1)||((registered_users[msg.sender].noDebt == false))&&(registered_users[msg.sender].theYear == yearDistribution),"You need to update your year and/or resolve your fines"); //make sure the user is in the right year
-
+        require((registered_users[msg.sender].theYear == yearDistribution + 1) ,"You need to end your year"); //make sure the user is in the right year
+        require(registered_users[msg.sender].noDebt == true, "You need to get out of debt, contanct the administrator to pay your fine"); //Makes sure the user cannot interact if they have not paid their fine
 
         //CONDITION IF BIDDING FOR THE FIRST TIME
         active_auctions[_auctionID].highestCurrentBid = active_auctions[_auctionID].bidders[msg.sender] + msg.value;
@@ -205,7 +210,7 @@ contract MEGA{
 
 
     //This function can be called by anyone once the time for the funciton is over
-    function endAuction(uint _auctionID) public{
+    function endAuction(uint _auctionID) private{ //private for test
         require(now > active_auctions[_auctionID].auctionEnd, 'The ending time for this auction has not yet been reached');//require that the end time for the auction has already happened
         active_auctions[_auctionID].isActive = false;
         //send back ether to all non-winning bidders
@@ -214,7 +219,7 @@ contract MEGA{
 
 
     //This function allows the seller to cancel an auction, within this step, they also get back the tokens that they were getting back for sale
-    function cancelAuction(uint _auctionID) public{
+    function cancelAuction(uint _auctionID) private{ //PRIVATE FOR TEST PURPOSES
         require(msg.sender == active_auctions[_auctionID].sellerID, 'Only the seller can cancel an auction' ); //require that only the seller can cancel an auction
         active_auctions[_auctionID].isActive = false;
         //send back ether to all bidders
@@ -223,57 +228,69 @@ contract MEGA{
         active_auctions[_auctionID].highestBidder.personAddress = msg.sender;
     }
 
-    //This function allows for people who didn't win an auction to get back all of the ether that they bid.
-    function withdrawEther(uint _auctionID) public{
-        require(active_auctions[_auctionID].highestBidder.personAddress != msg.sender, "You are the highest bidder for this auction, so you cannot withdraw the money that you bid");
-        msg.sender.transfer(active_auctions[_auctionID].bidders[msg.sender]);
-        active_auctions[_auctionID].bidders[msg.sender] = 0;
-    }
-
-    //This funciton allows the winning bidder to retrieve their winnings
-    function retrieveWinnings(uint _auctionID) public{
-        require(active_auctions[_auctionID].highestBidder.personAddress == msg.sender, "You were not the winner of this auction");
-        require(active_auctions[_auctionID].isActive == false, "You must wait until the auction is over for you to withdraw your winnings");
-       registered_users[active_auctions[_auctionID].highestBidder.personAddress].tokensWallet += active_auctions[_auctionID].numTokens;
-       frozenTokens -= active_auctions[_auctionID].numTokens;
-       active_auctions[_auctionID].numTokens = 0;
-    }
 
 
-    //This function allows the seller of an auction to retrieve their earnings
-    function retrieveEarningsFromSale(uint _auctionID) public{
-        require(active_auctions[_auctionID].sellerID == msg.sender, "You were not the seller for this auction");
-        require(active_auctions[_auctionID].isActive == false, "You must wait until the auction is over for you to withdraw your earnings");
-        msg.sender.transfer(active_auctions[_auctionID].highestCurrentBid);
-        active_auctions[_auctionID].highestCurrentBid = 0;
+    function retrieveFromAuction(uint _auctionID) public {
+        require(now > active_auctions[_auctionID].auctionEnd, 'The ending time for this auction has not been reached');//require that the end time for the auction has already happened
+
+        if (msg.sender == active_auctions[_auctionID].sellerID){
+            if (active_auctions[_auctionID].numBids == 0){
+                registered_users[active_auctions[_auctionID].sellerID].tokensWallet += active_auctions[_auctionID].numTokens;
+                active_auctions[_auctionID].numTokens = 0;
+            }
+            msg.sender.transfer(active_auctions[_auctionID].highestCurrentBid);
+            active_auctions[_auctionID].highestCurrentBid = 0;
+        }
+
+        if (msg.sender == active_auctions[_auctionID].highestBidder.personAddress){
+            registered_users[active_auctions[_auctionID].highestBidder.personAddress].tokensWallet += active_auctions[_auctionID].numTokens;
+            frozenTokens -= active_auctions[_auctionID].numTokens;
+            active_auctions[_auctionID].numTokens = 0;
+        }
+
+        else {
+            msg.sender.transfer(active_auctions[_auctionID].bidders[msg.sender]);
+            active_auctions[_auctionID].bidders[msg.sender] = 0;
+        }
     }
+
 
     //TEST function to check the current user ether balance - to be removed later
-    function getBalanceEther(address _addressToCheck) public returns (uint){
+    function getBalanceEther(address _addressToCheck) private returns (uint){
         theBalanceToCheckEther = _addressToCheck.balance;
         return theBalanceToCheckEther;
     }
 
     //This function allows you to check the amount of ether stroed in the contract
-    function contractEther() public {
+    function contractEther() private {
         theBalanceToCheckEther = getBalanceEther(address(this));
     }
+
     //This function takes in the auction that a user has participated in, and returns the amount that they have bid on that auction
-    function checkBidAmount(uint _auctionID) public {
+    function checkBidAmount(uint _auctionID) private {
         theBidAmount = active_auctions[_auctionID].bidders[msg.sender] ;
     }
 
     //This function tells you how many tokens you have
-    function checkTokenBalance() public {
+    function checkTokenBalance() private {
         theTokenBalance = registered_users[msg.sender].tokensWallet;
     }
 
 
-        //This function retrieves the emissions value from the Oracle
-    function getEmission(address _address) public constant returns(uint O) {
+    //This function retrieves the emissions value from the Oracle
+    function getEmission(address _address) private view returns(uint O) {
         OracleInterface o = OracleInterface(addressOracle);
         return o.emissions_registry(_address);
     }
+
+
+    //This function allows adin to change the flag noDebt
+    function ADMIN_enableUser(address userAddress) public {
+        require(msg.sender == owner, 'Only the contract owner can call this function');
+        registered_users[userAddress].noDebt = true;
+        registered_users[userAddress].tokensWallet = (total_cap / total_actors);
+    }
+
 
 
 
